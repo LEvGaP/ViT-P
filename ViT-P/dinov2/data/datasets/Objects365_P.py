@@ -30,9 +30,9 @@ class Objects365_P(Dataset):
         self.split = split
         
         if split=='train':
-            file_path = './datasets/Objects365/dsdl_Det_full/set-train/train_samples.json'  
+            file_path = './Objects365/dsdl_Det_full/set-train/train_samples.json'  
         else:
-            file_path = './datasets/Objects365/dsdl_Det_full/set-val/val_samples.json'
+            file_path = './Objects365/dsdl_Det_full/set-val/val_samples.json'
         
         with open(file_path, 'r') as file:
             root_dir = json.load(file)
@@ -60,7 +60,7 @@ class Objects365_P(Dataset):
 
     def __getitem__(self, idx):
         sample = self.root_dir[idx]
-        img_pth = "./datasets/Objects365/" + sample['media']['media_path']
+        img_pth = "./Objects365/" + sample['media']['media_path']
         image = Image.open(img_pth).convert('RGB')
 
         # if self.augmentation:
@@ -86,23 +86,39 @@ class Objects365_P(Dataset):
         
         x = np.random.choice(range(object_numbers), size=self.n_points, replace=True)
         
-        points = np.zeros((self.n_points,2))
+        points = np.zeros((self.n_points,4))
         
         label = np.zeros((self.n_points))
         
         _, h,w = image.shape
+        # j=0
+        # for i in x:
+        #     y_min, x_min, L1, L2 = sample['annotations'][i]['bbox']
+        #     L2 = max(L2, 1)
+        #     L1 = max(L1, 1)
+        #     x_min = min(x_min,0)
+        #     y_min = min(y_min,0)
+        #     px = random.randint(x_min,x_min+L2+1)
+        #     py = random.randint(y_min,y_min+L1+1)
+        #     points[j] = (px/h, py/w)
+        #     label[j] = sample['annotations'][i]['category_id'] - 1
+        #     j+=1
+
+        
         j=0
         for i in x:
             y_min, x_min, L1, L2 = sample['annotations'][i]['bbox']
-            L2 = max(L2, 1)
-            L1 = max(L1, 1)
-            x_min = min(x_min,0)
-            y_min = min(y_min,0)
-            px = random.randint(x_min,x_min+L2+1)
-            py = random.randint(y_min,y_min+L1+1)
-            points[j] = (px/h, py/w)
+            # L2 = max(L2, 1)
+            # L1 = max(L1, 1)
+            # x_min = min(x_min,0)
+            # y_min = min(y_min,0)
+            # px = random.randint(x_min,x_min+L2+1)
+            # py = random.randint(y_min,y_min+L1+1)
+            points[j] = (x_min/h, y_min/w, L2/h, L1/w)
             label[j] = sample['annotations'][i]['category_id'] - 1
             j+=1
+
+        
         
         points = 2 * points - 1
 
