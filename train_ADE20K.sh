@@ -36,4 +36,4 @@ sbatch -n1 \
         --output-dir ./OUTPUT_DIR \
         --no-resume"
 
-tar -cf ~/projects/model_ADE20k_base.tar checkpoint.pth
+tar -cf $VITP_PATH/model_ADE20k_base.tar checkpoint.pth
