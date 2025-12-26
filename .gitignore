@@ -51,6 +51,7 @@ _darcs
 /projects/*/datasets
 /models
 /snippet
+/env
 
 
 .idea/
