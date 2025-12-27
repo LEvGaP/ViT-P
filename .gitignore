@@ -66,3 +66,14 @@ upload.py
 
 
 *Zone.Identifier
+
+venv*
+.env
+
+slurm-*.out
+
+__pycache__/
+*.pyc
+
+ViT-P/OUTPUT_DIR/
+*.tar

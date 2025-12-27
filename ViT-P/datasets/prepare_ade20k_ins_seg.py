@@ -14,7 +14,7 @@ import pycocotools.mask as mask_util
 
 
 if __name__ == "__main__":
-    dataset_dir = os.getenv("DETECTRON2_DATASETS", "datasets")
+    dataset_dir = '/home6/m_imm_freedata/Segmentation/Projects'
 
     for name, dirname in [("train", "training"), ("val", "validation")]:
         image_dir = os.path.join(dataset_dir, f"ADEChallengeData2016/images/{dirname}/")

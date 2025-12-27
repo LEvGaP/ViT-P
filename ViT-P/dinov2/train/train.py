@@ -21,6 +21,7 @@ from dinov2.utils.config import setup
 from dinov2.utils.utils import CosineScheduler
 from dinov2.utils.scheduler import WarmupCosineSchedule
 from dinov2.train.ssl_meta_arch import SSLMetaArch
+from torch.utils.tensorboard import SummaryWriter
 
 from dinov2.eval.metrics import MetricType, build_metric
 
@@ -121,7 +122,7 @@ def apply_optim_scheduler(optimizer, lr, wd, last_layer_lr):
 
 
 @torch.inference_mode()
-def do_test(cfg, model, data_loader, iteration):
+def do_test(cfg, model, data_loader, iteration, tb_writer=None):
     model.eval()
     logger.info("running validation !")
 
@@ -161,6 +162,10 @@ def do_test(cfg, model, data_loader, iteration):
         
     logger.info(f"Top_1_accuracy: {top1_accuracy}")
     logger.info(f"Top_5_accuracy: {top5_accuracy}")
+
+    if tb_writer is not None and distributed.is_main_process():
+        tb_writer.add_scalar("val/top1", top1_accuracy, iteration)
+        tb_writer.add_scalar("val/top5", top5_accuracy, iteration)
     # logger.info(f"max_accuracy: {max_accuracy}")
 
     new_state_dict = model.student["backbone"].state_dict()
@@ -171,7 +176,10 @@ def do_test(cfg, model, data_loader, iteration):
         # os.makedirs(eval_dir, exist_ok=True)
         # # save teacher checkpoint
         # ckp_path = os.path.join(eval_dir, "teacher_checkpoint.pth")
-        ckp_path =  "./checkpoint.pth"
+        ckp_path = os.path.join(
+            cfg.train.output_dir,
+            f"eval_{iteration}.pth"
+        )
         torch.save(new_state_dict, ckp_path)
 
 
@@ -179,6 +187,10 @@ def do_train(cfg, model, resume=False):
     model.train()
     inputs_dtype = torch.half
     fp16_scaler = model.fp16_scaler  # for mixed precision training
+
+    tb_writer = None
+    if cfg.logging.tensorboard and distributed.is_main_process():
+        tb_writer = SummaryWriter(cfg.logging.tensorboard_dir)
 
     # setup optimizer
 
@@ -203,28 +215,31 @@ def do_train(cfg, model, resume=False):
 
     # optimizer.load_state_dict(torch.load("./optimizer.pth"))
     # scheduler.load_state_dict(torch.load("./scheduler.pth"))
-    # (
-    #     lr_schedule,
-    #     wd_schedule,
-    #     momentum_schedule,
-    #     teacher_temp_schedule,
-    #     last_layer_lr_schedule,
-    # ) = build_schedulers(cfg)
+    (
+        lr_schedule,
+        wd_schedule,
+        momentum_schedule,
+        teacher_temp_schedule,
+        last_layer_lr_schedule,
+    ) = build_schedulers(cfg)
 
     # checkpointer
-    # checkpointer = FSDPCheckpointer(model, cfg.train.output_dir, optimizer=optimizer, save_to_disk=True)
+    checkpointer = FSDPCheckpointer(model, cfg.train.output_dir, optimizer=optimizer, save_to_disk=True)
 
-    # start_iter = checkpointer.resume_or_load(cfg.MODEL.WEIGHTS, resume=resume).get("iteration", -1) + 1
-    start_iter = 0
+    start_iter = (
+        checkpointer.resume_or_load(
+            cfg.MODEL.WEIGHTS, resume=resume
+        ).get("iteration", -1) + 1
+    )
     OFFICIAL_EPOCH_LENGTH = cfg.train.OFFICIAL_EPOCH_LENGTH
     max_iter = cfg.optim.epochs * OFFICIAL_EPOCH_LENGTH
 
-    # periodic_checkpointer = PeriodicCheckpointer(
-    #     checkpointer,
-    #     period=3 * OFFICIAL_EPOCH_LENGTH,
-    #     max_iter=max_iter,
-    #     max_to_keep=3,
-    # )
+    periodic_checkpointer = PeriodicCheckpointer(
+        checkpointer,
+        period=cfg.train.saveckp_freq,
+        max_iter=max_iter,
+        max_to_keep=3,
+    )
 
     # setup data preprocessing
 
@@ -343,21 +358,27 @@ def do_train(cfg, model, resume=False):
 
         metric_logger.update(current_batch_size=current_batch_size)
         metric_logger.update(total_loss=losses_reduced, **loss_dict_reduced)
+        if tb_writer is not None:
+            tb_writer.add_scalar("train/loss_total", losses_reduced, iteration)
+            for k, v in loss_dict_reduced.items():
+                tb_writer.add_scalar(f"train/{k}", v, iteration)
 
         # checkpointing and testing
 
         if cfg.evaluation.eval_period_iterations > 0 and (iteration + 1) % cfg.evaluation.eval_period_iterations == 0:
-            do_test(cfg, model, val_data_loader, f"training_{iteration}")
-            if distributed.is_main_process():
-                torch.save(optimizer.state_dict(), "./optimizer.pth")
-                torch.save(scheduler.state_dict(), "./scheduler.pth")
+            do_test(cfg, model, val_data_loader, iteration, tb_writer)
+            # if distributed.is_main_process():
+                # torch.save(optimizer.state_dict(), "./optimizer.pth")
+                # torch.save(scheduler.state_dict(), "./scheduler.pth")
             torch.cuda.synchronize()
             model.train()
-        # periodic_checkpointer.step(iteration)
+        periodic_checkpointer.step(iteration)
 
         iteration = iteration + 1
     metric_logger.synchronize_between_processes()
     torch.distributed.destroy_process_group()
+    if tb_writer is not None:
+        tb_writer.close()
     return 0
 
 
@@ -375,7 +396,7 @@ def main(args):
             .get("iteration", -1)
             + 1
         )
-        return do_test(cfg, model, val_data_loader, f"training_{iteration}")
+        return do_test(cfg, model, val_data_loader, iteration)
 
     do_train(cfg, model, resume=not args.no_resume)
 
