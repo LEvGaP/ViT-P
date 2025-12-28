@@ -51,7 +51,6 @@ _darcs
 /projects/*/datasets
 /models
 /snippet
-OneFormer/env
 
 
 .idea/
@@ -68,8 +67,10 @@ upload.py
 
 *Zone.Identifier
 
+# env dirs
 venv*
 .env
+OneFormer/env
 
 slurm-*.out
 
