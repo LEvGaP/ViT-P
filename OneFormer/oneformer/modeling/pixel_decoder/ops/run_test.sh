@@ -2,7 +2,6 @@
 
 module load gpu/cuda-11.6
 
-
 NODE_PARAMS="-p hiperf --gres=gpu:a100:1 --nodelist=tesla-a101 -t 00:15:00"
 # NODE_PARAMS="-p hiperf --gres=gpu:v100:1 --nodelist=tesla-v100 -t 00:15:00"
 

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 module load gpu/cuda-11.6
 
