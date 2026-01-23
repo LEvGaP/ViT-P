@@ -1,15 +1,12 @@
 #!/bin/bash
-#SBATCH --nodes 1
-#SBATCH --gpus-per-node=a100:4
-#SBATCH --ntasks-per-node=4
-#SBATCH --cpus-per-task=8
-#SBATCH --time=00-07:00:00
 
 DATASET_PATH="/home6/m_imm_freedata/Segmentation/Projects/lapshin/Detectron2_datasets"
 VITP_PATH="/home/s0213/_scratch2/ViT-P"
 
 GPUS=1
-NODE_PARAMS="-p hiperf --gres=gpu:a100:1 --nodelist=tesla-a101 -t 00:30:00"
+NODE_PARAMS="-p hiperf --gres=gpu:a100:${GPUS} --nodelist=tesla-a101 -t 00:30:00"
+
+echo $SLURM_TMPDIR
 
 cp -r dinov2 $SLURM_TMPDIR
 unzip -q $DATASET_PATH/ADEChallengeData2016.zip -d $SLURM_TMPDIR/ViT-P/datasets
